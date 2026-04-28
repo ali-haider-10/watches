@@ -1,0 +1,41 @@
+{
+  "name": "ecommerce-api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "npm run db:init && next build",
+    "start": "next start",
+    "lint": "eslint",
+    "db:init": "npx tsx scripts/db-init.ts",
+    "seed": "npx tsx scripts/seed-products.ts",
+    "seed:admin": "npx tsx scripts/seed-admin.ts"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.15.15",
+    "@tailwindcss/postcss": "^4.2.1",
+    "aos": "^2.3.4",
+    "better-auth": "^1.6.9",
+    "better-sqlite3": "^12.8.0",
+    "drizzle-orm": "^0.45.1",
+    "next": "16.1.6",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "server-only": "^0.0.1",
+    "tailwindcss": "^4.2.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/aos": "^3.0.7",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dotenv": "^17.3.1",
+    "drizzle-kit": "^0.31.10",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tsx": "^4.21.0",
+    "typescript": "^5"
+  }
+}
