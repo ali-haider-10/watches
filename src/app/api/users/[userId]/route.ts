@@ -4,7 +4,7 @@ import { withRole } from "@/lib/middleware/requireRole";
 import { withValidation } from "@/lib/middleware/validate";
 import { adminUpdateUserSchema } from "@/lib/schemas/user.schema";
 import { errorResponse } from "@/lib/errors";
-import { db, users } from "@/lib/db";
+import { db, user as userTable } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { mapUserToApi } from "@/lib/types";
 
@@ -16,10 +16,8 @@ export const GET = withAuth(
       const { userId } = await context.params;
       const userResult = await db
         .select()
-        .from(users)
-        .where(eq(users.id, userId))
-        .limit(1);
-
+          .from(userTable)
+          .where(eq(userTable.id, userId))
       if (!userResult[0]) {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
       }
@@ -37,7 +35,7 @@ export const PATCH = withAuth(
         const { userId } = await context.params;
         const body = await req.json();
 
-        const updates: Partial<typeof users.$inferInsert> = {
+        const updates: Partial<typeof userTable.$inferInsert> = {
           updatedAt: new Date(),
         };
 
@@ -48,12 +46,12 @@ export const PATCH = withAuth(
           updates.shippingAddress = JSON.stringify(body.shippingAddress);
         }
 
-        await db.update(users).set(updates).where(eq(users.id, userId));
+        await db.update(userTable).set(updates).where(eq(userTable.id, userId));
 
         const updatedUserResult = await db
           .select()
-          .from(users)
-          .where(eq(users.id, userId))
+          .from(userTable)
+          .where(eq(userTable.id, userId))
           .limit(1);
 
         if (!updatedUserResult[0]) {

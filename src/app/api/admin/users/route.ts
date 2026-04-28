@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { withAuth, AuthenticatedRequest } from "@/lib/middleware/auth";
 import { withRole } from "@/lib/middleware/requireRole";
-import { db, users } from "@/lib/db";
+import { db, user as userTable } from "@/lib/db";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { mapUserToApi } from "@/lib/types";
 
@@ -19,12 +19,12 @@ export const GET = withAuth(
     if (search) {
       const searchTerm = `%${search}%`;
       conditions.push(
-        sql`(${users.email} LIKE ${searchTerm} OR ${users.name} LIKE ${searchTerm})`
+        sql`(${userTable.email} LIKE ${searchTerm} OR ${userTable.name} LIKE ${searchTerm})`
       );
     }
 
     if (role) {
-      conditions.push(eq(users.role, role as "customer" | "admin"));
+      conditions.push(eq(userTable.role, role as "customer" | "admin"));
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -32,12 +32,12 @@ export const GET = withAuth(
     const [userResults, countResult] = await Promise.all([
       db
         .select()
-        .from(users)
+        .from(userTable)
         .where(whereClause)
-        .orderBy(desc(users.createdAt))
+        .orderBy(desc(userTable.createdAt))
         .limit(limit)
         .offset(offset),
-      db.select({ count: sql<number>`COUNT(*)` }).from(users).where(whereClause),
+      db.select({ count: sql<number>`COUNT(*)` }).from(userTable).where(whereClause),
     ]);
 
     const total = countResult[0]?.count || 0;

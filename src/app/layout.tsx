@@ -24,9 +24,9 @@ const lora = Lora({
 });
 
 export const metadata: Metadata = {
-  title: "LUMINA Watches | Premium Timepieces",
+  title: "Arvexas Watches | Premium Timepieces",
   description:
-    "Explore premium watches for men, women, smart lifestyles, and couples at LUMINA Watches.",
+    "Explore premium watches for men, women, smart lifestyles, and couples at Arvexas Watches.",
 };
 
 export default function RootLayout({

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { authServer } from "@/lib/auth/server";
-import { db, users } from "@/lib/db";
+import { db, user as userTable } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 
@@ -18,8 +18,8 @@ export default async function AdminLayout({
 
   const dbUserResult = await db
     .select()
-    .from(users)
-    .where(eq(users.authUserId, user.id))
+    .from(userTable)
+    .where(eq(userTable.authUserId, user.id))
     .limit(1);
 
   let dbUser = dbUserResult[0];
@@ -27,17 +27,17 @@ export default async function AdminLayout({
   if (!dbUser && user.email) {
     const dbUserByEmailResult = await db
       .select()
-      .from(users)
-      .where(eq(users.email, user.email))
+      .from(userTable)
+      .where(eq(userTable.email, user.email))
       .limit(1);
 
     const existingByEmail = dbUserByEmailResult[0];
 
     if (existingByEmail) {
       await db
-        .update(users)
+        .update(userTable)
         .set({ authUserId: user.id, updatedAt: new Date() })
-        .where(eq(users.id, existingByEmail.id));
+        .where(eq(userTable.id, existingByEmail.id));
 
       dbUser = {
         ...existingByEmail,

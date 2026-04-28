@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { withAuth, AuthenticatedRequest } from "@/lib/middleware/auth";
 import { withRole } from "@/lib/middleware/requireRole";
-import { db, products, orders, users } from "@/lib/db";
+import { db, products, orders, user as userTable } from "@/lib/db";
 import { eq, ne, lt, and, sql } from "drizzle-orm";
 
 export const GET = withAuth(
@@ -27,7 +27,7 @@ export const GET = withAuth(
         .select({ count: sql<number>`COUNT(*)` })
         .from(products)
         .where(eq(products.isActive, true)),
-      db.select({ count: sql<number>`COUNT(*)` }).from(users),
+      db.select({ count: sql<number>`COUNT(*)` }).from(userTable),
       db
         .select({ count: sql<number>`COUNT(*)` })
         .from(products)

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, AppError } from "@/lib/errors";
-import { db, products, orders, orderItems, users, carts, cartItems as dbCartItemsTable } from "@/lib/db";
+import { db, products, orders, orderItems, user as userTable, carts, cartItems as dbCartItemsTable } from "@/lib/db";
 import { eq, inArray } from "drizzle-orm";
 import { generateId, generateOrderNumber } from "@/lib/db/utils";
 import { auth } from "@/lib/auth";
@@ -29,8 +29,8 @@ export async function POST(req: NextRequest) {
         // Find user in db
         const userResult = await db
           .select()
-          .from(users)
-          .where(eq(users.authUserId, authUser.id))
+          .from(userTable)
+          .where(eq(userTable.authUserId, authUser.id))
           .limit(1);
 
         const user = userResult[0];

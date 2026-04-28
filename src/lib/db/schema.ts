@@ -1,12 +1,15 @@
 import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 
-// Users table
-export const users = sqliteTable("users", {
+// App user table
+export const user = sqliteTable("user", {
   id: text("id").primaryKey(),
   authUserId: text("auth_user_id").notNull().unique(),
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
+  emailVerified: integer("email_verified", { mode: "boolean" }).notNull().default(false),
+  image: text("image"),
+  password: text("password"),
   role: text("role", { enum: ["customer", "admin"] }).notNull().default("customer"),
   phone: text("phone"),
   // Shipping address as JSON string
@@ -34,7 +37,7 @@ export const products = sqliteTable("products", {
 // Orders table
 export const orders = sqliteTable("orders", {
   id: text("id").primaryKey(),
-  userId: text("user_id").references(() => users.id),
+  userId: text("user_id").references(() => user.id),
   userEmail: text("user_email").notNull(),
   orderNumber: text("order_number").notNull().unique(),
   subtotal: real("subtotal").notNull(),
@@ -68,7 +71,7 @@ export const orderItems = sqliteTable("order_items", {
 // Carts table
 export const carts = sqliteTable("carts", {
   id: text("id").primaryKey(),
-  userId: text("user_id").notNull().unique().references(() => users.id),
+  userId: text("user_id").notNull().unique().references(() => user.id),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
@@ -85,15 +88,15 @@ export const cartItems = sqliteTable("cart_items", {
 });
 
 // Relations
-export const usersRelations = relations(users, ({ many, one }) => ({
+export const userRelations = relations(user, ({ many, one }) => ({
   orders: many(orders),
   cart: one(carts),
 }));
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
-  user: one(users, {
+  user: one(user, {
     fields: [orders.userId],
-    references: [users.id],
+    references: [user.id],
   }),
   items: many(orderItems),
 }));
@@ -110,9 +113,9 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
 }));
 
 export const cartsRelations = relations(carts, ({ one, many }) => ({
-  user: one(users, {
+  user: one(user, {
     fields: [carts.userId],
-    references: [users.id],
+    references: [user.id],
   }),
   items: many(cartItems),
 }));
@@ -134,8 +137,8 @@ export const productsRelations = relations(products, ({ many }) => ({
 }));
 
 // Types
-export type User = typeof users.$inferSelect;
-export type NewUser = typeof users.$inferInsert;
+export type User = typeof user.$inferSelect;
+export type NewUser = typeof user.$inferInsert;
 export type Product = typeof products.$inferSelect;
 export type NewProduct = typeof products.$inferInsert;
 export type Order = typeof orders.$inferSelect;

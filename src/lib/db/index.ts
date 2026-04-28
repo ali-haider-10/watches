@@ -53,7 +53,7 @@ function ensureOrdersUserIdNullable(sqlite: LocalSQLite) {
 
     CREATE TABLE orders_new (
       id TEXT PRIMARY KEY,
-      user_id TEXT REFERENCES users(id),
+      user_id TEXT REFERENCES user(id),
       user_email TEXT NOT NULL,
       order_number TEXT NOT NULL UNIQUE,
       subtotal REAL NOT NULL,
@@ -115,8 +115,29 @@ function ensureOrdersUserIdNullable(sqlite: LocalSQLite) {
   `);
 }
 
-function ensureUsersAuthUserIdColumn(sqlite: LocalSQLite) {
-  const columns = sqlite.prepare("PRAGMA table_info(users)").all() as QueryColumn[];
+function ensureUsersTableRenamed(sqlite: LocalSQLite) {
+  const tables = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('user','users')")
+    .all() as Array<{ name: string }>;
+
+  const hasUserTable = tables.some((table) => table.name === "user");
+  const hasUsersTable = tables.some((table) => table.name === "users");
+
+  if (hasUserTable) {
+    return;
+  }
+
+  if (hasUsersTable) {
+    sqlite.exec(`
+      ALTER TABLE users RENAME TO user;
+      DROP INDEX IF EXISTS idx_users_auth_user_id;
+      CREATE INDEX IF NOT EXISTS idx_user_auth_user_id ON user(auth_user_id);
+    `);
+  }
+}
+
+function ensureUserAuthUserIdColumn(sqlite: LocalSQLite) {
+  const columns = sqlite.prepare("PRAGMA table_info(user)").all() as QueryColumn[];
 
   const authUserIdColumn = columns.find((column) => column.name === "auth_user_id");
   if (authUserIdColumn) {
@@ -130,18 +151,83 @@ function ensureUsersAuthUserIdColumn(sqlite: LocalSQLite) {
 
   sqlite.exec(`
     DROP INDEX IF EXISTS idx_users_neon_auth_id;
-    ALTER TABLE users RENAME COLUMN neon_auth_id TO auth_user_id;
-    CREATE INDEX IF NOT EXISTS idx_users_auth_user_id ON users(auth_user_id);
+    ALTER TABLE user RENAME COLUMN neon_auth_id TO auth_user_id;
+    CREATE INDEX IF NOT EXISTS idx_user_auth_user_id ON user(auth_user_id);
+  `);
+}
+
+function ensureUserPasswordColumn(sqlite: LocalSQLite) {
+  const columns = sqlite.prepare("PRAGMA table_info(user)").all() as QueryColumn[];
+
+  const passwordColumn = columns.find((column) => column.name === "password");
+  if (passwordColumn) {
+    return;
+  }
+
+  sqlite.exec("ALTER TABLE user ADD COLUMN password TEXT");
+}
+
+function ensureBetterAuthTables(sqlite: LocalSQLite) {
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS user (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      email_verified INTEGER NOT NULL DEFAULT 0,
+      image TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS session (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+      expires_at INTEGER NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      ip_address TEXT,
+      user_agent TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS account (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+      account_id TEXT NOT NULL,
+      provider_id TEXT NOT NULL,
+      access_token TEXT,
+      refresh_token TEXT,
+      id_token TEXT,
+      access_token_expires_at INTEGER,
+      refresh_token_expires_at INTEGER,
+      scope TEXT,
+      password TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      UNIQUE(provider_id, account_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS verification (
+      id TEXT PRIMARY KEY,
+      identifier TEXT NOT NULL,
+      value TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
   `);
 }
 
 function initLocalDb(sqlite: LocalSQLite) {
   sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS users (
+    CREATE TABLE IF NOT EXISTS user (
       id TEXT PRIMARY KEY,
       auth_user_id TEXT NOT NULL UNIQUE,
       email TEXT NOT NULL UNIQUE,
       name TEXT NOT NULL,
+      email_verified INTEGER NOT NULL DEFAULT 0,
+      image TEXT,
+      password TEXT,
       role TEXT NOT NULL DEFAULT 'customer' CHECK(role IN ('customer', 'admin')),
       phone TEXT,
       shipping_address TEXT,
@@ -166,7 +252,7 @@ function initLocalDb(sqlite: LocalSQLite) {
 
     CREATE TABLE IF NOT EXISTS orders (
       id TEXT PRIMARY KEY,
-      user_id TEXT REFERENCES users(id),
+      user_id TEXT REFERENCES user(id),
       user_email TEXT NOT NULL,
       order_number TEXT NOT NULL UNIQUE,
       subtotal REAL NOT NULL,
@@ -195,7 +281,7 @@ function initLocalDb(sqlite: LocalSQLite) {
 
     CREATE TABLE IF NOT EXISTS carts (
       id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL UNIQUE REFERENCES users(id),
+      user_id TEXT NOT NULL UNIQUE REFERENCES user(id),
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
@@ -211,11 +297,14 @@ function initLocalDb(sqlite: LocalSQLite) {
     );
   `);
 
-  ensureUsersAuthUserIdColumn(sqlite);
+  ensureUsersTableRenamed(sqlite);
+  ensureUserAuthUserIdColumn(sqlite);
+  ensureUserPasswordColumn(sqlite);
+  ensureBetterAuthTables(sqlite);
   ensureOrdersUserIdNullable(sqlite);
 
   sqlite.exec(`
-    CREATE INDEX IF NOT EXISTS idx_users_auth_user_id ON users(auth_user_id);
+    CREATE INDEX IF NOT EXISTS idx_user_auth_user_id ON user(auth_user_id);
     CREATE INDEX IF NOT EXISTS idx_products_slug ON products(slug);
     CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
     CREATE INDEX IF NOT EXISTS idx_products_is_active ON products(is_active);

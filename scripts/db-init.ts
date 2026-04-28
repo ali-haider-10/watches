@@ -28,11 +28,14 @@ const TURSO_AUTH_TOKEN =
   process.env.TURSO_AUTH_TOKEN || process.env.DATABASE_AUTH_TOKEN;
 
 const SCHEMA_STATEMENTS = [
-  `CREATE TABLE IF NOT EXISTS users (
+  `CREATE TABLE IF NOT EXISTS user (
     id TEXT PRIMARY KEY,
     auth_user_id TEXT NOT NULL UNIQUE,
     email TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
+    email_verified INTEGER NOT NULL DEFAULT 0,
+    image TEXT,
+    password TEXT,
     role TEXT NOT NULL DEFAULT 'customer' CHECK(role IN ('customer', 'admin')),
     phone TEXT,
     shipping_address TEXT,
@@ -55,7 +58,7 @@ const SCHEMA_STATEMENTS = [
   )`,
   `CREATE TABLE IF NOT EXISTS orders (
     id TEXT PRIMARY KEY,
-    user_id TEXT REFERENCES users(id),
+    user_id TEXT REFERENCES user(id),
     user_email TEXT NOT NULL,
     order_number TEXT NOT NULL UNIQUE,
     subtotal REAL NOT NULL,
@@ -82,7 +85,7 @@ const SCHEMA_STATEMENTS = [
   )`,
   `CREATE TABLE IF NOT EXISTS carts (
     id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL UNIQUE REFERENCES users(id),
+    user_id TEXT NOT NULL UNIQUE REFERENCES user(id),
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   )`,
@@ -95,7 +98,7 @@ const SCHEMA_STATEMENTS = [
     quantity INTEGER NOT NULL,
     image TEXT
   )`,
-  "CREATE INDEX IF NOT EXISTS idx_users_auth_user_id ON users(auth_user_id)",
+  "CREATE INDEX IF NOT EXISTS idx_user_auth_user_id ON user(auth_user_id)",
   "CREATE INDEX IF NOT EXISTS idx_products_slug ON products(slug)",
   "CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)",
   "CREATE INDEX IF NOT EXISTS idx_products_is_active ON products(is_active)",
@@ -174,7 +177,7 @@ async function ensureOrdersUserIdNullableLocal(runner: Runner): Promise<void> {
   try {
     await runner.execute(`CREATE TABLE orders_new (
       id TEXT PRIMARY KEY,
-      user_id TEXT REFERENCES users(id),
+      user_id TEXT REFERENCES user(id),
       user_email TEXT NOT NULL,
       order_number TEXT NOT NULL UNIQUE,
       subtotal REAL NOT NULL,
@@ -239,8 +242,24 @@ async function ensureOrdersUserIdNullableLocal(runner: Runner): Promise<void> {
   }
 }
 
-async function ensureUsersAuthUserIdLocal(runner: Runner): Promise<void> {
-  const columns = await runner.query("PRAGMA table_info(users)");
+async function ensureUsersTableRenamedLocal(runner: Runner): Promise<void> {
+  const tables = await runner.query("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('user','users')");
+  const hasUserTable = tables.some((column) => String(column.name) === "user");
+  const hasUsersTable = tables.some((column) => String(column.name) === "users");
+
+  if (hasUserTable) {
+    return;
+  }
+
+  if (hasUsersTable) {
+    await runner.execute("ALTER TABLE users RENAME TO user");
+    await runner.execute("DROP INDEX IF EXISTS idx_users_auth_user_id");
+    await runner.execute("CREATE INDEX IF NOT EXISTS idx_user_auth_user_id ON user(auth_user_id)");
+  }
+}
+
+async function ensureUserAuthUserIdLocal(runner: Runner): Promise<void> {
+  const columns = await runner.query("PRAGMA table_info(user)");
   const authUserIdColumn = columns.find((column) => String(column.name) === "auth_user_id");
 
   if (authUserIdColumn) {
@@ -253,8 +272,68 @@ async function ensureUsersAuthUserIdLocal(runner: Runner): Promise<void> {
   }
 
   await runner.execute("DROP INDEX IF EXISTS idx_users_neon_auth_id");
-  await runner.execute("ALTER TABLE users RENAME COLUMN neon_auth_id TO auth_user_id");
-  await runner.execute("CREATE INDEX IF NOT EXISTS idx_users_auth_user_id ON users(auth_user_id)");
+  await runner.execute("ALTER TABLE user RENAME COLUMN neon_auth_id TO auth_user_id");
+  await runner.execute("CREATE INDEX IF NOT EXISTS idx_user_auth_user_id ON user(auth_user_id)");
+}
+
+async function ensureUserPasswordLocal(runner: Runner): Promise<void> {
+  const columns = await runner.query("PRAGMA table_info(user)");
+  const passwordColumn = columns.find((column) => String(column.name) === "password");
+
+  if (passwordColumn) {
+    return;
+  }
+
+  await runner.execute("ALTER TABLE user ADD COLUMN password TEXT");
+}
+
+async function ensureBetterAuthTablesLocal(runner: Runner): Promise<void> {
+  await runner.execute(`CREATE TABLE IF NOT EXISTS user (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    email_verified INTEGER NOT NULL DEFAULT 0,
+    image TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`);
+
+  await runner.execute(`CREATE TABLE IF NOT EXISTS session (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    expires_at INTEGER NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    ip_address TEXT,
+    user_agent TEXT
+  )`);
+
+  await runner.execute(`CREATE TABLE IF NOT EXISTS account (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    account_id TEXT NOT NULL,
+    provider_id TEXT NOT NULL,
+    access_token TEXT,
+    refresh_token TEXT,
+    id_token TEXT,
+    access_token_expires_at INTEGER,
+    refresh_token_expires_at INTEGER,
+    scope TEXT,
+    password TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE(provider_id, account_id)
+  )`);
+
+  await runner.execute(`CREATE TABLE IF NOT EXISTS verification (
+    id TEXT PRIMARY KEY,
+    identifier TEXT NOT NULL,
+    value TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`);
 }
 
 async function ensureDatabaseInitialized(runner: Runner): Promise<void> {
@@ -270,8 +349,11 @@ async function ensureDatabaseInitialized(runner: Runner): Promise<void> {
   if (existing.length > 0) {
     console.log(`Migration ${MIGRATION_ID} already applied.`);
     if (DB_DRIVER === "local") {
-      await ensureUsersAuthUserIdLocal(runner);
+      await ensureUsersTableRenamedLocal(runner);
+      await ensureUserAuthUserIdLocal(runner);
       await ensureOrdersUserIdNullableLocal(runner);
+      await ensureUserPasswordLocal(runner);
+      await ensureBetterAuthTablesLocal(runner);
     }
     return;
   }
@@ -281,8 +363,11 @@ async function ensureDatabaseInitialized(runner: Runner): Promise<void> {
   }
 
   if (DB_DRIVER === "local") {
-    await ensureUsersAuthUserIdLocal(runner);
+    await ensureUsersTableRenamedLocal(runner);
+    await ensureUserAuthUserIdLocal(runner);
     await ensureOrdersUserIdNullableLocal(runner);
+    await ensureUserPasswordLocal(runner);
+    await ensureBetterAuthTablesLocal(runner);
   }
 
   await runner.execute(

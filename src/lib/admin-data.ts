@@ -1,5 +1,5 @@
 import "server-only";
-import { db, products, orders, orderItems, users } from "@/lib/db";
+import { db, products, orders, orderItems, user as userTable } from "@/lib/db";
 import { eq, and, lt, gte, gt, desc, like, sql, ne } from "drizzle-orm";
 import type {
   Product as ProductType,
@@ -41,7 +41,7 @@ export async function getAdminStats(): Promise<AdminStats> {
       .select({ count: sql<number>`COUNT(*)` })
       .from(products)
       .where(eq(products.isActive, true)),
-    db.select({ count: sql<number>`COUNT(*)` }).from(users),
+    db.select({ count: sql<number>`COUNT(*)` }).from(userTable),
     db
       .select({ count: sql<number>`COUNT(*)` })
       .from(products)
@@ -206,13 +206,13 @@ export async function getAdminUsers(
   const conditions = [];
 
   if (params.role) {
-    conditions.push(eq(users.role, params.role as "customer" | "admin"));
+    conditions.push(eq(userTable.role, params.role as "customer" | "admin"));
   }
 
   if (params.q) {
     const searchTerm = `%${params.q}%`;
     conditions.push(
-      sql`(${users.email} LIKE ${searchTerm} OR ${users.name} LIKE ${searchTerm})`
+      sql`(${userTable.email} LIKE ${searchTerm} OR ${userTable.name} LIKE ${searchTerm})`
     );
   }
 
@@ -221,12 +221,12 @@ export async function getAdminUsers(
   const [userResults, countResult] = await Promise.all([
     db
       .select()
-      .from(users)
+      .from(userTable)
       .where(whereClause)
-      .orderBy(desc(users.createdAt))
+      .orderBy(desc(userTable.createdAt))
       .limit(limit)
       .offset(offset),
-    db.select({ count: sql<number>`COUNT(*)` }).from(users).where(whereClause),
+    db.select({ count: sql<number>`COUNT(*)` }).from(userTable).where(whereClause),
   ]);
 
   const total = countResult[0]?.count || 0;
@@ -267,8 +267,8 @@ export async function getAdminOrder(id: string): Promise<OrderType | null> {
 export async function getAdminUser(id: string): Promise<UserProfile | null> {
   const result = await db
     .select()
-    .from(users)
-    .where(eq(users.id, id))
+    .from(userTable)
+    .where(eq(userTable.id, id))
     .limit(1);
 
   return result[0] ? mapUserToApi(result[0]) : null;

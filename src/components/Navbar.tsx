@@ -71,8 +71,8 @@ export default function Navbar() {
         </div>
 
         <Link href="/" className="flex shrink-0 flex-col leading-none">
-          <span className="text-3xl font-semibold tracking-[0.08em] text-white">LUMINA</span>
-          <span className="mt-1 text-[10px] uppercase tracking-[0.28em] text-white/70">Since 1978</span>
+          <span className="text-3xl font-semibold tracking-[0.08em] text-white">ARVEXAS</span>
+          {/* <span className="mt-1 text-[10px] uppercase tracking-[0.28em] text-white/70">Since 2025</span> */}
         </Link>
 
         <nav className="hidden items-center gap-1 xl:flex">

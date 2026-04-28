@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { authServer } from "@/lib/auth/server";
 import { getAdminUser } from "@/lib/admin-data";
-import { db, users } from "@/lib/db";
+import { db, user as userTable } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import UserRoleSelect from "@/components/admin/UserRoleSelect";
 
@@ -24,8 +24,8 @@ export default async function UserDetailPage({ params }: PageProps) {
   const currentAdminResult = authUser
     ? await db
         .select()
-        .from(users)
-        .where(eq(users.authUserId, authUser.id))
+        .from(userTable)
+        .where(eq(userTable.authUserId, authUser.id))
         .limit(1)
     : [];
 

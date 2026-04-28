@@ -3,7 +3,7 @@ import { withAuth, AuthenticatedRequest } from "@/lib/middleware/auth";
 import { withValidation } from "@/lib/middleware/validate";
 import { updateUserSchema } from "@/lib/schemas/user.schema";
 import { errorResponse } from "@/lib/errors";
-import { db, users } from "@/lib/db";
+import { db, user as userTable } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { mapUserToApi } from "@/lib/types";
 
@@ -16,7 +16,7 @@ export const PATCH = withAuth(
     try {
       const body = await req.json();
 
-      const updates: Partial<typeof users.$inferInsert> = {
+      const updates: Partial<typeof userTable.$inferInsert> = {
         updatedAt: new Date(),
       };
 
@@ -26,13 +26,13 @@ export const PATCH = withAuth(
         updates.shippingAddress = JSON.stringify(body.shippingAddress);
       }
 
-      await db.update(users).set(updates).where(eq(users.id, req.user.id));
+      await db.update(userTable).set(updates).where(eq(userTable.id, req.user.id));
 
       // Fetch updated user
       const updatedUserResult = await db
         .select()
-        .from(users)
-        .where(eq(users.id, req.user.id))
+        .from(userTable)
+        .where(eq(userTable.id, req.user.id))
         .limit(1);
 
       return NextResponse.json({ user: mapUserToApi(updatedUserResult[0]) });

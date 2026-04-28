@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, users } from "@/lib/db/index";
+import { db, user as userTable } from "@/lib/db/index";
 import { eq } from "drizzle-orm";
 import { generateId } from "@/lib/db/utils";
 import type { User } from "@/lib/db/schema";
@@ -25,8 +25,8 @@ export function withAuth(handler: AnyHandlerFn) {
       // Prefer the auth user id, then reconcile by email for pre-seeded users.
       const userByAuthIdResult = await db
         .select()
-        .from(users)
-        .where(eq(users.authUserId, authUser.id))
+        .from(userTable)
+        .where(eq(userTable.authUserId, authUser.id))
         .limit(1);
 
       let user = userByAuthIdResult[0];
@@ -35,8 +35,8 @@ export function withAuth(handler: AnyHandlerFn) {
         const userByEmailResult = authUser.email
           ? await db
               .select()
-              .from(users)
-              .where(eq(users.email, authUser.email))
+              .from(userTable)
+              .where(eq(userTable.email, authUser.email))
               .limit(1)
           : [];
 
@@ -44,9 +44,9 @@ export function withAuth(handler: AnyHandlerFn) {
 
         if (existingByEmail) {
           await db
-            .update(users)
+            .update(userTable)
             .set({ authUserId: authUser.id, updatedAt: new Date() })
-            .where(eq(users.id, existingByEmail.id));
+            .where(eq(userTable.id, existingByEmail.id));
 
           user = {
             ...existingByEmail,
@@ -60,6 +60,7 @@ export function withAuth(handler: AnyHandlerFn) {
             authUserId: authUser.id,
             email,
             name: authUser.name || email.split("@")[0],
+            password: null,
             role: "customer" as const,
             phone: null,
             shippingAddress: null,
@@ -67,7 +68,7 @@ export function withAuth(handler: AnyHandlerFn) {
             updatedAt: new Date(),
           };
 
-          await db.insert(users).values(newUser);
+          await db.insert(userTable).values(newUser);
           user = newUser;
         }
       }
